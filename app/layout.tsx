@@ -12,6 +12,10 @@ import type { Metadata, Viewport } from "next";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Suspense } from "react";
 import "./globals.css";
+import { Inter } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "Beautiful themes for shadcn/ui — tweakcn | Theme Editor & Generator",
@@ -53,7 +57,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={cn("font-sans", inter.variable)}>
       <head>
         <ThemeScript />
         <DynamicFontLoader />
