@@ -74,8 +74,13 @@ function useDialogActionsStore(): DialogActionsContextType {
   const [shareUrl, setShareUrl] = useState("");
   const [dialogKey, _setDialogKey] = useState(0);
 
-  const { themeState, setThemeState, applyThemePreset, hasThemeChangedFromCheckpoint, hasUnsavedChanges } =
-    useEditorStore();
+  const {
+    themeState,
+    setThemeState,
+    applyThemePreset,
+    hasThemeChangedFromCheckpoint,
+    hasUnsavedChanges,
+  } = useEditorStore();
   const { getPreset } = useThemePresetStore();
   const { data: session } = authClient.useSession();
   const { openAuthDialog } = useAuthStore();
@@ -83,9 +88,11 @@ function useDialogActionsStore(): DialogActionsContextType {
   const updateThemeMutation = useUpdateTheme();
   const { isGeneratingTheme } = useAIThemeGenerationCore();
   const posthog = usePostHog();
+  const isLocalDevelopment = process.env.NODE_ENV === "development";
 
   const currentPreset = themeState?.preset ? getPreset(themeState.preset) : undefined;
-  const isOnSavedPreset = !!currentPreset && currentPreset.source === "SAVED" && hasUnsavedChanges();
+  const isOnSavedPreset =
+    !!currentPreset && currentPreset.source === "SAVED" && hasUnsavedChanges();
   const existingThemeName = isOnSavedPreset ? currentPreset.label : undefined;
 
   usePostLoginAction("SAVE_THEME", () => {
@@ -122,7 +129,7 @@ function useDialogActionsStore(): DialogActionsContextType {
   };
 
   const handleSaveClick = (options?: { shareAfterSave?: boolean; openInV0AfterSave?: boolean }) => {
-    if (!session) {
+    if (!session && !isLocalDevelopment) {
       let action: "SAVE_THEME" | "SAVE_THEME_FOR_SHARE" | "SAVE_THEME_FOR_V0" = "SAVE_THEME";
       if (options?.shareAfterSave) action = "SAVE_THEME_FOR_SHARE";
       if (options?.openInV0AfterSave) action = "SAVE_THEME_FOR_V0";
@@ -140,6 +147,34 @@ function useDialogActionsStore(): DialogActionsContextType {
   };
 
   const saveTheme = async (themeName: string) => {
+    if (!session && isLocalDevelopment) {
+      const localThemeId = `local-${crypto.randomUUID()}`;
+
+      useThemePresetStore.getState().registerPreset(localThemeId, {
+        label: themeName,
+        source: "BUILT_IN",
+        createdAt: new Date().toISOString(),
+        styles: themeState.styles,
+      });
+
+      applyThemePreset(localThemeId);
+
+      if (pendingAction === "share") {
+        handleShareClick(localThemeId);
+      } else if (pendingAction === "v0") {
+        openInV0(localThemeId, themeName);
+      }
+
+      setPendingAction(null);
+      setSaveDialogOpen(false);
+
+      toast({
+        title: "Theme saved locally",
+        description: `"${themeName}" is available in this local session.`,
+      });
+      return;
+    }
+
     const themeData = {
       name: themeName,
       styles: themeState.styles,
@@ -239,6 +274,26 @@ function useDialogActionsStore(): DialogActionsContextType {
 
   const handleUpdateExisting = async () => {
     if (!themeState.preset) return;
+
+    if (!session && isLocalDevelopment) {
+      const existingPreset = getPreset(themeState.preset);
+      if (!existingPreset) return;
+
+      useThemePresetStore.getState().updatePreset(themeState.preset, {
+        ...existingPreset,
+        styles: themeState.styles,
+      });
+
+      applyThemePreset(themeState.preset);
+      setSaveDialogOpen(false);
+
+      toast({
+        title: "Theme updated locally",
+        description: `"${existingPreset.label || "Theme"}" has been updated in this session.`,
+      });
+      return;
+    }
+
     try {
       const result = await updateThemeMutation.mutateAsync({
         id: themeState.preset,
