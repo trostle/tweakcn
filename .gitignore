@@ -27,6 +27,7 @@ bun.lock
 .DS_Store
 *.pem
 .cursor
+.superpowers/
 
 # debug
 npm-debug.log*
@@ -47,3 +48,4 @@ next-env.d.ts
 
 # build artifacts
 public/r/themes
+public/r/v0
